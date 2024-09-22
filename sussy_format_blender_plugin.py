@@ -141,8 +141,20 @@ def create_mesh_from_data(pos_normal_list, uv_list, triangles):
     bpy.context.collection.objects.link(obj)
     
     # Prepare the mesh data
-    vertices = [pos for pos, _ in pos_normal_list]
-    faces = [[tri[0][0], tri[1][0], tri[2][0]] for tri in triangles]
+    vertices = []
+    vertex_map = {}
+    
+    # Collect unique vertices
+    for pos, normal in pos_normal_list:
+        if pos not in vertex_map:
+            vertex_map[pos] = len(vertices)
+            vertices.append(pos)
+    
+    # Create faces based on the triangles
+    faces = []
+    for tri in triangles:
+        face = [vertex_map[pos_normal_list[tri[i][0]][0]] for i in range(3)]
+        faces.append(face)
 
     # Create the mesh from the vertex and face data
     mesh.from_pydata(vertices, [], faces)
@@ -157,12 +169,11 @@ def create_mesh_from_data(pos_normal_list, uv_list, triangles):
         # Ensure correct number of UV coordinates
         if len(uv_layer) >= len(vertices):
             for poly in mesh.polygons:
-                for loop in poly.loop_indices:
-                    loop_idx = loop
+                for loop_idx in poly.loop_indices:
                     face_idx = poly.index
                     uv_id = triangles[face_idx][loop_idx % 3][1]
                     if uv_id < len(uv_list):
-                        uv_layer[loop].uv = uv_list[uv_id]
+                        uv_layer[loop_idx].uv = uv_list[uv_id]
         else:
             print("Warning: UV map size does not match the number of loops.")
 
@@ -175,12 +186,6 @@ def create_mesh_from_data(pos_normal_list, uv_list, triangles):
             mesh.normals_split_custom_set(custom_normals)
         else:
             print(f"Warning: Number of custom normals ({len(custom_normals)}) does not match number of loops ({len(mesh.loops)})")
-
-    # Apply "Merge by Distance" to eliminate duplicate vertices
-    bpy.context.view_layer.objects.active = obj
-    bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.mesh.remove_doubles()  # Merges vertices within the specified distance
-    bpy.ops.object.mode_set(mode='OBJECT')
 
     return obj
 
