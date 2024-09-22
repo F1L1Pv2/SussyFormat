@@ -16,34 +16,42 @@ def write_sussy(filepath, mesh):
     uv_list = []
     triangles = []
 
+    # Ensure the mesh is in object mode
     bpy.ops.object.mode_set(mode='OBJECT')
-    bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.mesh.quads_convert_to_tris()
-    bpy.ops.object.mode_set(mode='OBJECT')
-
+    
+    # Calculate split normals and triangulation in memory
     mesh.calc_normals_split()
+    mesh.calc_loop_triangles()
+
     uv_layer = mesh.uv_layers.active.data if mesh.uv_layers.active else None
 
-    for loop in mesh.loops:
-        vert = mesh.vertices[loop.vertex_index]
-        pos = tuple(vert.co)
-        normal = tuple(loop.normal)
+    for tri in mesh.loop_triangles:
+        tri_indices = []
         
-        pos_normal_key = (pos, normal)
-        
-        if pos_normal_key not in pos_normal_map:
-            pos_normal_map[pos_normal_key] = len(pos_normal_list)
-            pos_normal_list.append((pos, normal))
-        
-        if uv_layer:
-            uv = tuple(uv_layer[loop.index].uv)
-            if uv not in uv_map:
-                uv_map[uv] = len(uv_list)
-                uv_list.append(uv)
+        for loop_index in tri.loops:
+            vert = mesh.vertices[mesh.loops[loop_index].vertex_index]
+            pos = tuple(vert.co)
+            normal = tuple(mesh.loops[loop_index].normal)
+            
+            pos_normal_key = (pos, normal)
+            
+            if pos_normal_key not in pos_normal_map:
+                pos_normal_map[pos_normal_key] = len(pos_normal_list)
+                pos_normal_list.append((pos, normal))
+            
+            pos_normal_id = pos_normal_map[pos_normal_key]
 
-        pos_normal_id = pos_normal_map[pos_normal_key]
-        uv_id = uv_map.get(tuple(uv_layer[loop.index].uv), 0)
-        triangles.append((pos_normal_id, uv_id))
+            uv_id = 0
+            if uv_layer:
+                uv = tuple(uv_layer[loop_index].uv)
+                if uv not in uv_map:
+                    uv_map[uv] = len(uv_list)
+                    uv_list.append(uv)
+                uv_id = uv_map[uv]
+
+            tri_indices.append((pos_normal_id, uv_id))
+        
+        triangles.extend(tri_indices)
 
     try:
         with open(filepath, 'wb') as file:
